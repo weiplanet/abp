@@ -1,46 +1,91 @@
 ﻿using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 
 namespace Volo.Abp.Cli.Utils
 {
     public static class CmdHelper
     {
+        public static int SuccessfulExitCode = 0;
+
+        public static void OpenWebPage(string url)
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                url = url.Replace("&", "^&");
+                Process.Start(new ProcessStartInfo("cmd", $"/c start {url}") { CreateNoWindow = true });
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                Process.Start("xdg-open", url);
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                Process.Start("open", url);
+            }
+        }
+
         public static void Run(string file, string arguments)
         {
             var procStartInfo = new ProcessStartInfo(file, arguments);
-            Process.Start(procStartInfo).WaitForExit();
+            Process.Start(procStartInfo)?.WaitForExit();
         }
 
-        public static void RunCmd(string command)
+        public static int RunCmd(string command)
         {
-            var procStartInfo = new ProcessStartInfo(GetFileName(), GetArguments(command));
-            Process.Start(procStartInfo).WaitForExit();
+            var procStartInfo = new ProcessStartInfo(
+                GetFileName(),
+                GetArguments(command)
+            );
+
+            using (var process = Process.Start(procStartInfo))
+            {
+                process?.WaitForExit();
+                return process?.ExitCode ?? 0;
+            }
         }
 
         public static string RunCmdAndGetOutput(string command)
         {
-            var output = "";
+            return RunCmdAndGetOutput(command, out int _);
+        }
+
+        public static string RunCmdAndGetOutput(string command, out bool isExitCodeSuccessful)
+        {
+            var output = RunCmdAndGetOutput(command, out int exitCode);
+            isExitCodeSuccessful = exitCode == SuccessfulExitCode;
+            return output;
+        }
+
+        public static string RunCmdAndGetOutput(string command, out int exitCode)
+        {
+            string output;
 
             using (var process = new Process())
             {
                 process.StartInfo = new ProcessStartInfo(CmdHelper.GetFileName())
                 {
-                    Arguments = CmdHelper.GetArguments(command),
+                    Arguments = GetArguments(command),
                     UseShellExecute = false,
                     CreateNoWindow = true,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true
                 };
+
                 process.Start();
 
-                using (var stdOut = process.StandardOutput)
+                using (var standardOutput = process.StandardOutput)
                 {
-                    using (var stdErr = process.StandardError)
+                    using (var standardError = process.StandardError)
                     {
-                        output = stdOut.ReadToEnd();
-                        output += stdErr.ReadToEnd();
+                        output = standardOutput.ReadToEnd();
+                        output += standardError.ReadToEnd();
                     }
                 }
+
+                process.WaitForExit();
+
+                exitCode = process.ExitCode;
             }
 
             return output.Trim();
@@ -59,14 +104,28 @@ namespace Volo.Abp.Cli.Utils
 
         public static string GetFileName()
         {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX) || RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                //TODO: Test this. it should work for both operation systems.
+                //Windows
+                return "cmd.exe";
+            }
+
+            //Linux or OSX
+            if (File.Exists("/bin/bash"))
+            {
                 return "/bin/bash";
             }
 
-            //Windows default.
-            return "cmd.exe"; 
+            if (File.Exists("/bin/sh"))
+            {
+                return "/bin/sh"; //some Linux distributions like Alpine doesn't have bash
+            }
+
+            throw new AbpException($"Cannot determine shell command for this OS! " +
+                                   $"Running on OS: {System.Runtime.InteropServices.RuntimeInformation.OSDescription} | " +
+                                   $"OS Architecture: {System.Runtime.InteropServices.RuntimeInformation.OSArchitecture} | " +
+                                   $"Framework: {System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription} | " +
+                                   $"Process Architecture{System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}");
         }
     }
 }

@@ -4,11 +4,13 @@ using System.Linq;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Threading.Tasks;
+using Localization.Resources.AbpUi;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.TagHelpers;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Razor.TagHelpers;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Localization;
 using Volo.Abp.AspNetCore.Mvc.UI.Bootstrap.Microsoft.AspNetCore.Razor.TagHelpers;
 using Volo.Abp.AspNetCore.Mvc.UI.Bootstrap.TagHelpers.Button;
 using Volo.Abp.AspNetCore.Mvc.UI.Bootstrap.TagHelpers.Extensions;
@@ -20,15 +22,18 @@ namespace Volo.Abp.AspNetCore.Mvc.UI.Bootstrap.TagHelpers.Form
         private readonly HtmlEncoder _htmlEncoder;
         private readonly IHtmlGenerator _htmlGenerator;
         private readonly IServiceProvider _serviceProvider;
+        private readonly IStringLocalizer<AbpUiResource> _localizer;
 
         public AbpDynamicFormTagHelperService(
             HtmlEncoder htmlEncoder,
             IHtmlGenerator htmlGenerator,
-            IServiceProvider serviceProvider)
+            IServiceProvider serviceProvider,
+            IStringLocalizer<AbpUiResource> localizer)
         {
             _htmlEncoder = htmlEncoder;
             _htmlGenerator = htmlGenerator;
             _serviceProvider = serviceProvider;
+            _localizer = localizer;
         }
 
         public override async Task ProcessAsync(TagHelperContext context, TagHelperOutput output)
@@ -43,11 +48,13 @@ namespace Volo.Abp.AspNetCore.Mvc.UI.Bootstrap.TagHelpers.Form
 
             await ProcessFieldsAsync(context, output);
 
+            RemoveFormGroupItemsNotInModel(context, output, list);
+
             SetContent(context, output, list, childContent);
 
             SetFormAttributes(context, output);
 
-            SetSubmitButton(context, output);
+            await SetSubmitButton(context, output);
         }
 
         protected virtual async Task ConvertToMvcForm(TagHelperContext context, TagHelperOutput output)
@@ -107,14 +114,14 @@ namespace Volo.Abp.AspNetCore.Mvc.UI.Bootstrap.TagHelpers.Form
             output.Content.SetHtmlContent(childContent);
         }
 
-        protected virtual void SetSubmitButton(TagHelperContext context, TagHelperOutput output)
+        protected virtual async Task SetSubmitButton(TagHelperContext context, TagHelperOutput output)
         {
             if (!TagHelper.SubmitButton ?? true)
             {
                 return;
             }
 
-            var buttonHtml = ProcessSubmitButtonAndGetContentAsync(context, output);
+            var buttonHtml = await ProcessSubmitButtonAndGetContentAsync(context, output);
 
             output.PostContent.SetHtmlContent(output.PostContent.GetContent() + buttonHtml);
         }
@@ -143,6 +150,13 @@ namespace Volo.Abp.AspNetCore.Mvc.UI.Bootstrap.TagHelpers.Form
             }
         }
 
+        protected virtual void RemoveFormGroupItemsNotInModel(TagHelperContext context, TagHelperOutput output, List<FormGroupItem> items)
+        {
+            var models = GetModels(context, output);
+
+            items.RemoveAll(x => models.All(m => !m.Name.Equals(x.PropertyName, StringComparison.InvariantCultureIgnoreCase)));
+        }
+
         protected virtual async Task ProcessSelectGroupAsync(TagHelperContext context, TagHelperOutput output, ModelExpression model)
         {
             var abpSelectTagHelper = GetSelectGroupTagHelper(context, output, model);
@@ -152,7 +166,7 @@ namespace Volo.Abp.AspNetCore.Mvc.UI.Bootstrap.TagHelpers.Form
 
         protected virtual AbpTagHelper GetSelectGroupTagHelper(TagHelperContext context, TagHelperOutput output, ModelExpression model)
         {
-            return IsRadioGroup(model.ModelExplorer) ? 
+            return IsRadioGroup(model.ModelExplorer) ?
                 GetAbpRadioInputTagHelper(model) :
                 GetSelectTagHelper(model);
         }
@@ -182,7 +196,7 @@ namespace Volo.Abp.AspNetCore.Mvc.UI.Bootstrap.TagHelpers.Form
         {
             var abpButtonTagHelper = _serviceProvider.GetRequiredService<AbpButtonTagHelper>();
             var attributes = new TagHelperAttributeList { new TagHelperAttribute("type", "submit") };
-            abpButtonTagHelper.Text = "Submit";
+            abpButtonTagHelper.Text = _localizer["Submit"];
             abpButtonTagHelper.ButtonType = AbpButtonType.Primary;
 
             return await abpButtonTagHelper.RenderAsync(attributes, context, _htmlEncoder, "button", TagMode.StartTagAndEndTag);

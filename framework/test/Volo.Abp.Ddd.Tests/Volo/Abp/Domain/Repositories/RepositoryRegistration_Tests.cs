@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
+using JetBrains.Annotations;
 using Microsoft.Extensions.DependencyInjection;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Entities;
@@ -187,9 +189,9 @@ namespace Volo.Abp.Domain.Repositories
             services.ShouldContainTransient(typeof(IRepository<MyTestEntityWithInt32Pk, int>), typeof(MyTestCustomBaseRepository<MyTestEntityWithInt32Pk, int>));
         }
 
-        public class MyTestRepositoryRegistrar : RepositoryRegistrarBase<CommonDbContextRegistrationOptions>
+        public class MyTestRepositoryRegistrar : RepositoryRegistrarBase<AbpCommonDbContextRegistrationOptions>
         {
-            public MyTestRepositoryRegistrar(CommonDbContextRegistrationOptions options)
+            public MyTestRepositoryRegistrar(AbpCommonDbContextRegistrationOptions options)
                 : base(options)
             {
             }
@@ -239,32 +241,55 @@ namespace Volo.Abp.Domain.Repositories
         public class MyTestDefaultRepository<TEntity> : RepositoryBase<TEntity>
             where TEntity : class, IEntity
         {
-            public override TEntity Insert(TEntity entity, bool autoSave = false)
-            {
-                throw new NotImplementedException();
-            }
 
-            public override TEntity Update(TEntity entity, bool autoSave = false)
-            {
-                throw new NotImplementedException();
-            }
-
-            public override void Delete(TEntity entity, bool autoSave = false)
-            {
-                throw new NotImplementedException();
-            }
-
-            public override List<TEntity> GetList(bool includeDetails = false)
-            {
-                throw new NotImplementedException();
-            }
-
-            public override long GetCount()
-            {
-                throw new NotImplementedException();
-            }
-
+            [Obsolete("Use GetQueryableAsync method.")]
             protected override IQueryable<TEntity> GetQueryable()
+            {
+                throw new NotImplementedException();
+            }
+
+            public override Task<IQueryable<TEntity>> GetQueryableAsync()
+            {
+                throw new NotImplementedException();
+            }
+
+            public override Task<TEntity> FindAsync(Expression<Func<TEntity, bool>> predicate, bool includeDetails = true, CancellationToken cancellationToken = default)
+            {
+                throw new NotImplementedException();
+            }
+
+            public override Task DeleteAsync(Expression<Func<TEntity, bool>> predicate, bool autoSave = false, CancellationToken cancellationToken = default)
+            {
+                throw new NotImplementedException();
+            }
+
+            public override Task<TEntity> InsertAsync(TEntity entity, bool autoSave = false, CancellationToken cancellationToken = default)
+            {
+                throw new NotImplementedException();
+            }
+
+            public override Task<TEntity> UpdateAsync(TEntity entity, bool autoSave = false, CancellationToken cancellationToken = default)
+            {
+                throw new NotImplementedException();
+            }
+
+            public override Task DeleteAsync(TEntity entity, bool autoSave = false, CancellationToken cancellationToken = default)
+            {
+                throw new NotImplementedException();
+            }
+
+            public override Task<List<TEntity>> GetListAsync(bool includeDetails = false, CancellationToken cancellationToken = default)
+            {
+                throw new NotImplementedException();
+            }
+
+            public override Task<long> GetCountAsync(CancellationToken cancellationToken = default)
+            {
+                throw new NotImplementedException();
+            }
+
+            public override Task<List<TEntity>> GetPagedListAsync(int skipCount, int maxResultCount, string sorting, bool includeDetails = false,
+                CancellationToken cancellationToken = default)
             {
                 throw new NotImplementedException();
             }
@@ -273,17 +298,7 @@ namespace Volo.Abp.Domain.Repositories
         public class MyTestDefaultRepository<TEntity, TKey> : MyTestDefaultRepository<TEntity>, IRepository<TEntity, TKey>
             where TEntity : class, IEntity<TKey>
         {
-            public TEntity Get(TKey id, bool includeDetails = true)
-            {
-                throw new NotImplementedException();
-            }
-
             public Task<TEntity> GetAsync(TKey id, bool includeDetails = true, CancellationToken cancellationToken = default)
-            {
-                throw new NotImplementedException();
-            }
-
-            public TEntity Find(TKey id, bool includeDetails = true)
             {
                 throw new NotImplementedException();
             }
@@ -293,12 +308,12 @@ namespace Volo.Abp.Domain.Repositories
                 throw new NotImplementedException();
             }
 
-            public void Delete(TKey id, bool autoSave = false)
+            public Task DeleteAsync(TKey id, bool autoSave = false, CancellationToken cancellationToken = default)
             {
                 throw new NotImplementedException();
             }
 
-            public Task DeleteAsync(TKey id, bool autoSave = false, CancellationToken cancellationToken = default)
+            public Task DeleteManyAsync([NotNull] IEnumerable<TKey> ids, bool autoSave = false, CancellationToken cancellationToken = default)
             {
                 throw new NotImplementedException();
             }
@@ -331,7 +346,7 @@ namespace Volo.Abp.Domain.Repositories
 
         }
 
-        public class TestDbContextRegistrationOptions : CommonDbContextRegistrationOptions
+        public class TestDbContextRegistrationOptions : AbpCommonDbContextRegistrationOptions
         {
             public TestDbContextRegistrationOptions(Type originalDbContextType, IServiceCollection services)
                 : base(originalDbContextType, services)

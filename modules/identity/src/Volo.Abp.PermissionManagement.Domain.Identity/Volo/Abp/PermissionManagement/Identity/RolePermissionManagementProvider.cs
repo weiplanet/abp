@@ -11,22 +11,22 @@ namespace Volo.Abp.PermissionManagement.Identity
     {
         public override string Name => RolePermissionValueProvider.ProviderName;
 
-        private readonly IUserRoleFinder _userRoleFinder;
+        protected IUserRoleFinder UserRoleFinder { get; }
 
         public RolePermissionManagementProvider(
             IPermissionGrantRepository permissionGrantRepository,
             IGuidGenerator guidGenerator,
-            ICurrentTenant currentTenant, 
+            ICurrentTenant currentTenant,
             IUserRoleFinder userRoleFinder)
             : base(
                 permissionGrantRepository,
                 guidGenerator,
                 currentTenant)
         {
-            _userRoleFinder = userRoleFinder;
+            UserRoleFinder = userRoleFinder;
         }
 
-        public override async Task<PermissionValueProviderGrantInfo> CheckAsync(string name, string providerName, string providerKey)
+        public async override Task<PermissionValueProviderGrantInfo> CheckAsync(string name, string providerName, string providerKey)
         {
             if (providerName == Name)
             {
@@ -39,7 +39,7 @@ namespace Volo.Abp.PermissionManagement.Identity
             if (providerName == UserPermissionValueProvider.ProviderName)
             {
                 var userId = Guid.Parse(providerKey);
-                var roleNames = await _userRoleFinder.GetRolesAsync(userId);
+                var roleNames = await UserRoleFinder.GetRolesAsync(userId);
 
                 foreach (var roleName in roleNames)
                 {

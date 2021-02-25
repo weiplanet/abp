@@ -7,6 +7,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using MongoDB.Driver;
 using MongoDB.Driver.Linq;
+using Volo.Abp.Auditing;
+using Volo.Abp.Domain.Entities;
 using Volo.Abp.Domain.Repositories.MongoDB;
 using Volo.Abp.MongoDB;
 
@@ -20,9 +22,9 @@ namespace Volo.Abp.AuditLogging.MongoDB
 
         }
 
-        public async Task<List<AuditLog>> GetListAsync(
+        public virtual async Task<List<AuditLog>> GetListAsync(
             string sorting = null,
-            int maxResultCount = 50, 
+            int maxResultCount = 50,
             int skipCount = 0,
             DateTime? startTime = null,
             DateTime? endTime = null,
@@ -38,7 +40,7 @@ namespace Volo.Abp.AuditLogging.MongoDB
             bool includeDetails = false,
             CancellationToken cancellationToken = default)
         {
-            var query = GetListQuery(
+            var query = await GetListQueryAsync(
                 startTime,
                 endTime,
                 httpMethod,
@@ -50,7 +52,8 @@ namespace Volo.Abp.AuditLogging.MongoDB
                 minDuration,
                 hasException,
                 httpStatusCode,
-                includeDetails
+                includeDetails,
+                cancellationToken
             );
 
             return await query.OrderBy(sorting ?? "executionTime desc").As<IMongoQueryable<AuditLog>>()
@@ -58,7 +61,7 @@ namespace Volo.Abp.AuditLogging.MongoDB
                 .ToListAsync(GetCancellationToken(cancellationToken));
         }
 
-        public async Task<long> GetCountAsync(
+        public virtual async Task<long> GetCountAsync(
             DateTime? startTime = null,
             DateTime? endTime = null,
             string httpMethod = null,
@@ -72,7 +75,7 @@ namespace Volo.Abp.AuditLogging.MongoDB
             HttpStatusCode? httpStatusCode = null,
             CancellationToken cancellationToken = default)
         {
-            var query = GetListQuery(
+            var query = await GetListQueryAsync(
                 startTime,
                 endTime,
                 httpMethod,
@@ -83,7 +86,8 @@ namespace Volo.Abp.AuditLogging.MongoDB
                 maxDuration,
                 minDuration,
                 hasException,
-                httpStatusCode
+                httpStatusCode,
+                cancellationToken: cancellationToken
             );
 
             var count = await query.As<IMongoQueryable<AuditLog>>()
@@ -92,7 +96,7 @@ namespace Volo.Abp.AuditLogging.MongoDB
             return count;
         }
 
-        private IQueryable<AuditLog> GetListQuery(
+        protected virtual async Task<IQueryable<AuditLog>> GetListQueryAsync(
             DateTime? startTime = null,
             DateTime? endTime = null,
             string httpMethod = null,
@@ -104,13 +108,14 @@ namespace Volo.Abp.AuditLogging.MongoDB
             int? minDuration = null,
             bool? hasException = null,
             HttpStatusCode? httpStatusCode = null,
-            bool includeDetails = false)
+            bool includeDetails = false,
+            CancellationToken cancellationToken = default)
         {
-            return GetMongoQueryable()
+            return (await GetMongoQueryableAsync(cancellationToken))
                 .WhereIf(startTime.HasValue, auditLog => auditLog.ExecutionTime >= startTime)
                 .WhereIf(endTime.HasValue, auditLog => auditLog.ExecutionTime <= endTime)
-                .WhereIf(hasException.HasValue && hasException.Value, auditLog => auditLog.Exceptions != null)
-                .WhereIf(hasException.HasValue && !hasException.Value, auditLog => auditLog.Exceptions == null)
+                .WhereIf(hasException.HasValue && hasException.Value, auditLog => auditLog.Exceptions != null && auditLog.Exceptions != "")
+                .WhereIf(hasException.HasValue && !hasException.Value, auditLog => auditLog.Exceptions == null || auditLog.Exceptions == "")
                 .WhereIf(httpMethod != null, auditLog => auditLog.HttpMethod == httpMethod)
                 .WhereIf(url != null, auditLog => auditLog.Url != null && auditLog.Url.Contains(url))
                 .WhereIf(userName != null, auditLog => auditLog.UserName == userName)
@@ -119,6 +124,136 @@ namespace Volo.Abp.AuditLogging.MongoDB
                 .WhereIf(httpStatusCode != null && httpStatusCode > 0, auditLog => auditLog.HttpStatusCode == (int?)httpStatusCode)
                 .WhereIf(maxDuration != null && maxDuration > 0, auditLog => auditLog.ExecutionDuration <= maxDuration)
                 .WhereIf(minDuration != null && minDuration > 0, auditLog => auditLog.ExecutionDuration >= minDuration);
+        }
+
+
+        public virtual async Task<Dictionary<DateTime, double>> GetAverageExecutionDurationPerDayAsync(
+            DateTime startDate,
+            DateTime endDate,
+            CancellationToken cancellationToken = default)
+        {
+            var result = await (await GetMongoQueryableAsync(cancellationToken))
+                .Where(a => a.ExecutionTime < endDate.AddDays(1) && a.ExecutionTime > startDate)
+                .OrderBy(t => t.ExecutionTime)
+                .GroupBy(t => new
+                {
+                    t.ExecutionTime.Year,
+                    t.ExecutionTime.Month,
+                    t.ExecutionTime.Day
+                })
+                .Select(g => new { Day = g.Min(t => t.ExecutionTime), avgExecutionTime = g.Average(t => t.ExecutionDuration) })
+                .ToListAsync(GetCancellationToken(cancellationToken));
+
+            return result.ToDictionary(element => element.Day.ClearTime(), element => element.avgExecutionTime);
+        }
+
+        public virtual async Task<EntityChange> GetEntityChange(
+            Guid entityChangeId,
+            CancellationToken cancellationToken = default)
+        {
+            var entityChange = (await (await GetMongoQueryableAsync(cancellationToken))
+                .Where(x => x.EntityChanges.Any(y => y.Id == entityChangeId))
+                .OrderBy(x => x.Id)
+                .FirstAsync(GetCancellationToken(cancellationToken))).EntityChanges.FirstOrDefault(x => x.Id == entityChangeId);
+
+            if (entityChange == null)
+            {
+                throw new EntityNotFoundException(typeof(EntityChange));
+            }
+
+            return entityChange;
+        }
+
+        public virtual async Task<List<EntityChange>> GetEntityChangeListAsync(
+            string sorting = null,
+            int maxResultCount = 50,
+            int skipCount = 0,
+            Guid? auditLogId = null,
+            DateTime? startTime = null,
+            DateTime? endTime = null,
+            EntityChangeType? changeType = null,
+            string entityId = null,
+            string entityTypeFullName = null,
+            bool includeDetails = false,
+            CancellationToken cancellationToken = default)
+        {
+            var query = await GetEntityChangeListQueryAsync(auditLogId, startTime, endTime, changeType, entityId, entityTypeFullName, cancellationToken);
+
+            return await query
+                .OrderBy(sorting ?? "changeTime desc")
+                .As<IMongoQueryable<EntityChange>>()
+                .PageBy<EntityChange, IMongoQueryable<EntityChange>>(skipCount, maxResultCount)
+                .ToListAsync(GetCancellationToken(cancellationToken));
+        }
+
+        public virtual async Task<long> GetEntityChangeCountAsync(
+            Guid? auditLogId = null,
+            DateTime? startTime = null,
+            DateTime? endTime = null,
+            EntityChangeType? changeType = null,
+            string entityId = null,
+            string entityTypeFullName = null,
+            CancellationToken cancellationToken = default)
+        {
+            var query = await GetEntityChangeListQueryAsync(auditLogId, startTime, endTime, changeType, entityId, entityTypeFullName, cancellationToken);
+
+            var count = await query.As<IMongoQueryable<EntityChange>>().LongCountAsync(GetCancellationToken(cancellationToken));
+
+            return count;
+        }
+
+        public virtual async Task<EntityChangeWithUsername> GetEntityChangeWithUsernameAsync(
+            Guid entityChangeId,
+            CancellationToken cancellationToken = default)
+        {
+            var auditLog = await (await GetMongoQueryableAsync(cancellationToken))
+                            .Where(x => x.EntityChanges.Any(y => y.Id == entityChangeId))
+                            .FirstAsync(GetCancellationToken(cancellationToken));
+
+            return new EntityChangeWithUsername()
+            {
+                EntityChange = auditLog.EntityChanges.First(x => x.Id == entityChangeId),
+                UserName = auditLog.UserName
+            };
+        }
+
+        public virtual async Task<List<EntityChangeWithUsername>> GetEntityChangesWithUsernameAsync(
+            string entityId,
+            string entityTypeFullName,
+            CancellationToken cancellationToken = default)
+        {
+            var auditLogs = await (await GetMongoQueryableAsync(cancellationToken))
+                            .Where(x => x.EntityChanges.Any(y => y.EntityId == entityId && y.EntityTypeFullName == entityTypeFullName))
+                            .As<IMongoQueryable<AuditLog>>()
+                            .OrderByDescending(x => x.ExecutionTime)
+                            .ToListAsync(GetCancellationToken(cancellationToken));
+
+            var entityChanges = auditLogs.SelectMany(x => x.EntityChanges).ToList();
+
+            entityChanges.RemoveAll(x => x.EntityId != entityId || x.EntityTypeFullName != entityTypeFullName);
+
+            return entityChanges.Select(x => new EntityChangeWithUsername()
+                {EntityChange = x, UserName = auditLogs.First(y => y.Id == x.AuditLogId).UserName}).ToList();
+        }
+
+        protected virtual async Task<IQueryable<EntityChange>> GetEntityChangeListQueryAsync(
+            Guid? auditLogId = null,
+            DateTime? startTime = null,
+            DateTime? endTime = null,
+            EntityChangeType? changeType = null,
+            string entityId = null,
+            string entityTypeFullName = null,
+            CancellationToken cancellationToken = default)
+        {
+            return (await GetMongoQueryableAsync(cancellationToken))
+                    .SelectMany(x => x.EntityChanges)
+                    .WhereIf(auditLogId.HasValue, e => e.Id == auditLogId)
+                    .WhereIf(startTime.HasValue, e => e.ChangeTime >= startTime)
+                    .WhereIf(endTime.HasValue, e => e.ChangeTime <= endTime)
+                    .WhereIf(changeType.HasValue, e => e.ChangeType == changeType)
+                    .WhereIf(!string.IsNullOrWhiteSpace(entityId), e => e.EntityId == entityId)
+                    .WhereIf(!string.IsNullOrWhiteSpace(entityTypeFullName),
+                        e => e.EntityTypeFullName.Contains(entityTypeFullName));
         }
     }
 }

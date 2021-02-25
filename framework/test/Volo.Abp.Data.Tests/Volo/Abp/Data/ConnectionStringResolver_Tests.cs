@@ -1,6 +1,8 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
 using Shouldly;
 using Volo.Abp.Modularity;
+using Volo.Abp.Testing;
 using Xunit;
 
 namespace Volo.Abp.Data
@@ -20,21 +22,21 @@ namespace Volo.Abp.Data
         }
 
         [Fact]
-        public void Should_Get_Default_ConnString_By_Default()
+        public async Task Should_Get_Default_ConnString_By_Default()
         {
-            _connectionStringResolver.Resolve().ShouldBe(DefaultConnString);
+            (await _connectionStringResolver.ResolveAsync()).ShouldBe(DefaultConnString);
         }
 
         [Fact]
-        public void Should_Get_Specific_ConnString_IfDefined()
+        public async Task Should_Get_Specific_ConnString_IfDefined()
         {
-            _connectionStringResolver.Resolve(Database1Name).ShouldBe(Database1ConnString);
+            (await _connectionStringResolver.ResolveAsync(Database1Name)).ShouldBe(Database1ConnString);
         }
 
         [Fact]
-        public void Should_Get_Default_ConnString_If_Not_Specified()
+        public async Task Should_Get_Default_ConnString_If_Not_Specified()
         {
-            _connectionStringResolver.Resolve(Database2Name).ShouldBe(DefaultConnString);
+            (await _connectionStringResolver.ResolveAsync(Database2Name)).ShouldBe(DefaultConnString);
         }
 
         [DependsOn(typeof(AbpDataModule))]
@@ -42,7 +44,7 @@ namespace Volo.Abp.Data
         {
             public override void ConfigureServices(ServiceConfigurationContext context)
             {
-                Configure<DbConnectionOptions>(options =>
+                Configure<AbpDbConnectionOptions>(options =>
                 {
                     options.ConnectionStrings.Default = DefaultConnString;
                     options.ConnectionStrings[Database1Name] = Database1ConnString;

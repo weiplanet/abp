@@ -1,16 +1,14 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Volo.Abp.Data;
 using Volo.Abp.EntityFrameworkCore;
+using Volo.Abp.MultiTenancy;
 
 namespace Volo.Abp.SettingManagement.EntityFrameworkCore
 {
-    [ConnectionStringName(AbpSettingManagementConsts.ConnectionStringName)]
+    [IgnoreMultiTenancy]
+    [ConnectionStringName(AbpSettingManagementDbProperties.ConnectionStringName)]
     public class SettingManagementDbContext : AbpDbContext<SettingManagementDbContext>, ISettingManagementDbContext
     {
-        public static string TablePrefix { get; set; } = AbpSettingManagementConsts.DefaultDbTablePrefix;
-
-        public static string Schema { get; set; } = AbpSettingManagementConsts.DefaultDbSchema;
-
         public DbSet<Setting> Settings { get; set; }
 
         public SettingManagementDbContext(DbContextOptions<SettingManagementDbContext> options)
@@ -23,7 +21,7 @@ namespace Volo.Abp.SettingManagement.EntityFrameworkCore
         {
             base.OnModelCreating(builder);
 
-            builder.ConfigureSettingManagement(TablePrefix, Schema);
+            builder.ConfigureSettingManagement();
         }
     }
 }

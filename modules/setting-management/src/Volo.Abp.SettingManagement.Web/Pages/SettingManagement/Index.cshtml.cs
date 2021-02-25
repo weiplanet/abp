@@ -1,7 +1,10 @@
 using System;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Options;
+using Microsoft.AspNetCore.Mvc;
+using Volo.Abp.AspNetCore.Mvc.ApplicationConfigurations;
 using Volo.Abp.AspNetCore.Mvc.UI.RazorPages;
+using Volo.Abp.EventBus.Local;
 
 namespace Volo.Abp.SettingManagement.Web.Pages.SettingManagement
 {
@@ -9,25 +12,41 @@ namespace Volo.Abp.SettingManagement.Web.Pages.SettingManagement
     {
         public SettingPageCreationContext SettingPageCreationContext { get; private set; }
 
-        private readonly SettingManagementPageOptions _options;
-        private readonly IServiceProvider _serviceProvider;
+        protected ILocalEventBus LocalEventBus { get; }
+        protected SettingManagementPageOptions Options { get; }
 
         public IndexModel(
-            IOptions<SettingManagementPageOptions> options, 
-            IServiceProvider serviceProvider)
+            IOptions<SettingManagementPageOptions> options,
+            ILocalEventBus localEventBus)
         {
-            _serviceProvider = serviceProvider;
-            _options = options.Value;
+            LocalEventBus = localEventBus;
+            Options = options.Value;
         }
 
-        public async Task OnGetAsync()
+        public virtual async Task<IActionResult> OnGetAsync()
         {
-            SettingPageCreationContext = new SettingPageCreationContext(_serviceProvider);
+            SettingPageCreationContext = new SettingPageCreationContext(ServiceProvider);
 
-            foreach (var contributor in _options.Contributors)
+            foreach (var contributor in Options.Contributors)
             {
                 await contributor.ConfigureAsync(SettingPageCreationContext);
             }
+
+            return Page();
+        }
+
+        public virtual Task<IActionResult> OnPostAsync()
+        {
+            return Task.FromResult<IActionResult>(Page());
+        }
+
+        public virtual async Task<NoContentResult> OnPostRefreshConfigurationAsync()
+        {
+            await LocalEventBus.PublishAsync(
+                new CurrentApplicationConfigurationCacheResetEventData()
+            );
+
+            return NoContent();
         }
     }
 }

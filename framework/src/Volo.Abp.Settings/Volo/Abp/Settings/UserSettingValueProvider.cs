@@ -1,11 +1,13 @@
-﻿using System.Threading.Tasks;
+﻿using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using Volo.Abp.Users;
 
 namespace Volo.Abp.Settings
 {
     public class UserSettingValueProvider : SettingValueProvider
     {
-        public const string ProviderName = "User";
+        public const string ProviderName = "U";
 
         public override string Name => ProviderName;
 
@@ -25,6 +27,16 @@ namespace Volo.Abp.Settings
             }
 
             return await SettingStore.GetOrNullAsync(setting.Name, Name, CurrentUser.Id.ToString());
+        }
+
+        public override async Task<List<SettingValue>> GetAllAsync(SettingDefinition[] settings)
+        {
+            if (CurrentUser.Id == null)
+            {
+                return settings.Select(x => new SettingValue(x.Name, null)).ToList();
+            }
+
+            return await SettingStore.GetAllAsync(settings.Select(x => x.Name).ToArray(), Name, CurrentUser.Id.ToString());
         }
     }
 }

@@ -1,13 +1,18 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
+using Volo.Abp.EventBus.Abstractions;
 using Volo.Abp.EventBus.Distributed;
 using Volo.Abp.EventBus.Local;
 using Volo.Abp.Modularity;
+using Volo.Abp.MultiTenancy;
 using Volo.Abp.Reflection;
 
 namespace Volo.Abp.EventBus
 {
+    [DependsOn(
+        typeof(AbpEventBusAbstractionsModule),
+        typeof(AbpMultiTenancyModule))]
     public class AbpEventBusModule : AbpModule
     {
         public override void PreConfigureServices(ServiceConfigurationContext context)
@@ -32,12 +37,12 @@ namespace Volo.Abp.EventBus
                 }
             });
 
-            services.Configure<LocalEventBusOptions>(options =>
+            services.Configure<AbpLocalEventBusOptions>(options =>
             {
                 options.Handlers.AddIfNotContains(localHandlers);
             });
 
-            services.Configure<DistributedEventBusOptions>(options =>
+            services.Configure<AbpDistributedEventBusOptions>(options =>
             {
                 options.Handlers.AddIfNotContains(distributedHandlers);
             });

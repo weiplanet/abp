@@ -1,7 +1,9 @@
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Volo.Abp.DependencyInjection;
 
 namespace Volo.Abp.BackgroundWorkers
 {
@@ -12,13 +14,14 @@ namespace Volo.Abp.BackgroundWorkers
     {
         //TODO: Add UOW, Localization and other useful properties..?
 
-        public ILogger<BackgroundWorkerBase> Logger { protected get; set; }
+        public IAbpLazyServiceProvider LazyServiceProvider { get; set; }
 
-        protected BackgroundWorkerBase()
-        {
-            Logger = NullLogger<BackgroundWorkerBase>.Instance;
-        }
-        
+        public IServiceProvider ServiceProvider { get; set; }
+
+        protected ILoggerFactory LoggerFactory => LazyServiceProvider.LazyGetRequiredService<ILoggerFactory>();
+
+        protected ILogger Logger => LazyServiceProvider.LazyGetService<ILogger>(provider => LoggerFactory?.CreateLogger(GetType().FullName) ?? NullLogger.Instance);
+
         public virtual Task StartAsync(CancellationToken cancellationToken = default)
         {
             Logger.LogDebug("Started background worker: " + ToString());

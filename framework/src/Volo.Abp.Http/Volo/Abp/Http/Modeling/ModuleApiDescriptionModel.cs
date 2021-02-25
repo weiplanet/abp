@@ -13,42 +13,50 @@ namespace Volo.Abp.Http.Modeling
         /// </summary>
         public const string DefaultRootPath = "app";
 
+        /// <summary>
+        /// "Default".
+        /// </summary>
+        public const string DefaultRemoteServiceName = "Default";
+
         public string RootPath { get; set; }
+
+        public string RemoteServiceName { get; set; }
 
         public IDictionary<string, ControllerApiDescriptionModel> Controllers { get; set; }
 
-        private ModuleApiDescriptionModel()
+        public ModuleApiDescriptionModel()
         {
-            
+
         }
 
-        public static ModuleApiDescriptionModel Create(string rootPath)
+        public static ModuleApiDescriptionModel Create(string rootPath, string remoteServiceName)
         {
             return new ModuleApiDescriptionModel
             {
                 RootPath = rootPath,
+                RemoteServiceName = remoteServiceName,
                 Controllers = new Dictionary<string, ControllerApiDescriptionModel>()
             };
         }
 
         public ControllerApiDescriptionModel AddController(ControllerApiDescriptionModel controller)
         {
-            if (Controllers.ContainsKey(controller.ControllerName))
+            if (Controllers.ContainsKey(controller.Type))
             {
-                throw new AbpException($"There is already a controller with name: {controller.ControllerName} in module: {RootPath}");
+                throw new AbpException($"There is already a controller with type: {controller.Type} in module: {RootPath}");
             }
 
-            return Controllers[controller.ControllerName] = controller;
+            return Controllers[controller.Type] = controller;
         }
 
-        public ControllerApiDescriptionModel GetOrAddController(string uniqueName, string name, Type type, [CanBeNull] HashSet<Type> ignoredInterfaces = null)
+        public ControllerApiDescriptionModel GetOrAddController(string name, Type type, [CanBeNull] HashSet<Type> ignoredInterfaces = null)
         {
-            return Controllers.GetOrAdd(uniqueName, () => ControllerApiDescriptionModel.Create(name, type, ignoredInterfaces));
+            return Controllers.GetOrAdd(type.FullName, () => ControllerApiDescriptionModel.Create(name, type, ignoredInterfaces));
         }
-        
+
         public ModuleApiDescriptionModel CreateSubModel(string[] controllers, string[] actions)
         {
-            var subModel = Create(RootPath);
+            var subModel = Create(RootPath, RemoteServiceName);
 
             foreach (var controller in Controllers.Values)
             {

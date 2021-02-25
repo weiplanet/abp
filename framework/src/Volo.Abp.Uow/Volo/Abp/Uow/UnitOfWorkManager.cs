@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Volo.Abp.DependencyInjection;
 
@@ -6,20 +7,23 @@ namespace Volo.Abp.Uow
 {
     public class UnitOfWorkManager : IUnitOfWorkManager, ISingletonDependency
     {
+        [Obsolete("This will be removed in next versions.")]
+        public static AsyncLocal<bool> DisableObsoleteDbContextCreationWarning { get; } = new AsyncLocal<bool>();
+
         public IUnitOfWork Current => GetCurrentUnitOfWork();
 
-        private readonly IHybridServiceScopeFactory _serviceScopeFactory;
+        private readonly IServiceScopeFactory _serviceScopeFactory;
         private readonly IAmbientUnitOfWork _ambientUnitOfWork;
 
         public UnitOfWorkManager(
-            IAmbientUnitOfWork ambientUnitOfWork, 
-            IHybridServiceScopeFactory serviceScopeFactory)
+            IAmbientUnitOfWork ambientUnitOfWork,
+            IServiceScopeFactory serviceScopeFactory)
         {
             _ambientUnitOfWork = ambientUnitOfWork;
             _serviceScopeFactory = serviceScopeFactory;
         }
 
-        public IUnitOfWork Begin(UnitOfWorkOptions options, bool requiresNew = false)
+        public IUnitOfWork Begin(AbpUnitOfWorkOptions options, bool requiresNew = false)
         {
             Check.NotNull(options, nameof(options));
 
@@ -39,7 +43,7 @@ namespace Volo.Abp.Uow
         {
             Check.NotNull(reservationName, nameof(reservationName));
 
-            if (!requiresNew && 
+            if (!requiresNew &&
                 _ambientUnitOfWork.UnitOfWork != null &&
                 _ambientUnitOfWork.UnitOfWork.IsReservedFor(reservationName))
             {
@@ -52,7 +56,7 @@ namespace Volo.Abp.Uow
             return unitOfWork;
         }
 
-        public void BeginReserved(string reservationName, UnitOfWorkOptions options)
+        public void BeginReserved(string reservationName, AbpUnitOfWorkOptions options)
         {
             if (!TryBeginReserved(reservationName, options))
             {
@@ -60,7 +64,7 @@ namespace Volo.Abp.Uow
             }
         }
 
-        public bool TryBeginReserved(string reservationName, UnitOfWorkOptions options)
+        public bool TryBeginReserved(string reservationName, AbpUnitOfWorkOptions options)
         {
             Check.NotNull(reservationName, nameof(reservationName));
 

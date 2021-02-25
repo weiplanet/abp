@@ -6,19 +6,24 @@ namespace Volo.Abp.Identity
 {
     public class IdentityDataSeedContributor : IDataSeedContributor, ITransientDependency
     {
-        private readonly IIdentityDataSeeder _identityDataSeeder;
+        public const string AdminEmailPropertyName = "AdminEmail";
+        public const string AdminEmailDefaultValue = "admin@abp.io";
+        public const string AdminPasswordPropertyName = "AdminPassword";
+        public const string AdminPasswordDefaultValue = "1q2w3E*";
+
+        protected IIdentityDataSeeder IdentityDataSeeder { get; }
 
         public IdentityDataSeedContributor(IIdentityDataSeeder identityDataSeeder)
         {
-            _identityDataSeeder = identityDataSeeder;
+            IdentityDataSeeder = identityDataSeeder;
         }
 
-        public Task SeedAsync(DataSeedContext context)
+        public virtual Task SeedAsync(DataSeedContext context)
         {
-            return _identityDataSeeder.SeedAsync(
-                context["AdminEmail"] as string ?? "admin@abp.io",
-                context["AdminPassword"] as string ?? "1q2w3E*",
-                context.TenantId
+            return IdentityDataSeeder.SeedAsync(
+                context?[AdminEmailPropertyName] as string ?? AdminEmailDefaultValue,
+                context?[AdminPasswordPropertyName] as string ?? AdminPasswordDefaultValue,
+                context?.TenantId
             );
         }
     }

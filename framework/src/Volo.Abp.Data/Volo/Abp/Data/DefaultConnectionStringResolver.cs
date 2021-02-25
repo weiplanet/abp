@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Options;
 using Volo.Abp.DependencyInjection;
 
@@ -7,27 +7,40 @@ namespace Volo.Abp.Data
 {
     public class DefaultConnectionStringResolver : IConnectionStringResolver, ITransientDependency
     {
-        protected DbConnectionOptions Options { get; }
+        protected AbpDbConnectionOptions Options { get; }
 
-        public DefaultConnectionStringResolver(IOptionsSnapshot<DbConnectionOptions> options)
+        public DefaultConnectionStringResolver(
+            IOptionsSnapshot<AbpDbConnectionOptions> options)
         {
             Options = options.Value;
         }
 
+        [Obsolete("Use ResolveAsync method.")]
         public virtual string Resolve(string connectionStringName = null)
         {
-            //Get module specific value if provided
-            if (!connectionStringName.IsNullOrEmpty())
+            return ResolveInternal(connectionStringName);
+        }
+
+        public virtual Task<string> ResolveAsync(string connectionStringName = null)
+        {
+            return Task.FromResult(ResolveInternal(connectionStringName));
+        }
+
+        private string ResolveInternal(string connectionStringName)
+        {
+            if (connectionStringName == null)
             {
-                var moduleConnString = Options.ConnectionStrings.GetOrDefault(connectionStringName);
-                if (!moduleConnString.IsNullOrEmpty())
-                {
-                    return moduleConnString;
-                }
+                return Options.ConnectionStrings.Default;
             }
             
-            //Get default value
-            return Options.ConnectionStrings.Default;
+            var connectionString = Options.GetConnectionStringOrNull(connectionStringName);
+            
+            if (!connectionString.IsNullOrEmpty())
+            {
+                return connectionString;
+            }
+
+            return null;
         }
     }
 }

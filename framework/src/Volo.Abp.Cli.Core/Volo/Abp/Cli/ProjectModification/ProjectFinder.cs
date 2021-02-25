@@ -2,11 +2,13 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using JetBrains.Annotations;
 
 namespace Volo.Abp.Cli.ProjectModification
 {
     public static class ProjectFinder
     {
+        [CanBeNull]
         public static string FindNuGetTargetProjectFile(string[] projectFiles, NuGetPackageTarget target)
         {
             if (!projectFiles.Any())
@@ -20,6 +22,8 @@ namespace Volo.Abp.Cli.ProjectModification
             {
                 case NuGetPackageTarget.Web:
                     return FindProjectEndsWith(projectFiles, assemblyNames, ".Web");
+                case NuGetPackageTarget.IdentityServer:
+                    return FindProjectEndsWith(projectFiles, assemblyNames, ".IdentityServer");
                 case NuGetPackageTarget.EntityFrameworkCore:
                     return FindProjectEndsWith(projectFiles, assemblyNames, ".EntityFrameworkCore");
                 case NuGetPackageTarget.MongoDB:
@@ -39,8 +43,14 @@ namespace Volo.Abp.Cli.ProjectModification
                     return FindProjectEndsWith(projectFiles, assemblyNames, ".HttpApi");
                 case NuGetPackageTarget.HttpApiClient:
                     return FindProjectEndsWith(projectFiles, assemblyNames, ".HttpApi.Client");
+                case NuGetPackageTarget.SignalR:
+                    return FindProjectEndsWith(projectFiles, assemblyNames, ".SignalR") ??
+                           FindProjectEndsWith(projectFiles, assemblyNames, ".Web") ??
+                           FindProjectEndsWith(projectFiles, assemblyNames, ".HttpApi.Host");
+                case NuGetPackageTarget.Blazor:
+                    return FindProjectEndsWith(projectFiles, assemblyNames, ".Blazor");
                 default:
-                    throw new ApplicationException($"{nameof(NuGetPackageTarget)}.{target} has not implemented!");
+                    return null;
             }
         }
 
@@ -92,20 +102,13 @@ namespace Volo.Abp.Cli.ProjectModification
 
         public static string[] GetAssemblyNames(string[] projectFiles)
         {
-            return projectFiles.Select(GetAssemblyName).ToArray();
-        }
-
-        public static string GetAssemblyName(string projectFile)
-        {
-            return projectFile
-                .Substring(projectFile.LastIndexOf(Path.DirectorySeparatorChar) + 1)
-                .RemovePostFix(StringComparison.OrdinalIgnoreCase, ".csproj");
+            return projectFiles.Select(ProjectFileNameHelper.GetAssemblyNameFromProjectPath).ToArray();
         }
 
         private static string FindProjectEndsWith(
             string[] projectFiles,
-            string[] assemblyNames, 
-            string postfix, 
+            string[] assemblyNames,
+            string postfix,
             string excludePostfix = null)
         {
             for (var i = 0; i < assemblyNames.Length; i++)
@@ -128,6 +131,12 @@ namespace Volo.Abp.Cli.ProjectModification
             if (baseFolder == null)
             {
                 return projectFolders.ToArray();
+            }
+
+            var hostFolder = Path.Combine(baseFolder, "host");
+            if (Directory.Exists(hostFolder))
+            {
+                projectFolders.Add(hostFolder);
             }
 
             var srcFolder = Path.Combine(baseFolder, "src");

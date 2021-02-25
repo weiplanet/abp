@@ -1,78 +1,116 @@
-﻿using System;
+﻿using JetBrains.Annotations;
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Volo.Abp.Data;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.Domain.Entities;
+using Volo.Abp.Linq;
+using Volo.Abp.MultiTenancy;
 using Volo.Abp.Threading;
 using Volo.Abp.Uow;
 
 namespace Volo.Abp.Domain.Repositories
 {
-    public abstract class BasicRepositoryBase<TEntity> : 
-        IBasicRepository<TEntity>, 
+    public abstract class BasicRepositoryBase<TEntity> :
+        IBasicRepository<TEntity>,
         IServiceProviderAccessor,
-        IUnitOfWorkEnabled,
-        ITransientDependency
+        IUnitOfWorkEnabled
         where TEntity : class, IEntity
     {
+        public IAbpLazyServiceProvider LazyServiceProvider { get; set; }
+
         public IServiceProvider ServiceProvider { get; set; }
 
-        public ICancellationTokenProvider CancellationTokenProvider { get; set; }
+        public IDataFilter DataFilter => LazyServiceProvider.LazyGetRequiredService<IDataFilter>();
+
+        public ICurrentTenant CurrentTenant => LazyServiceProvider.LazyGetRequiredService<ICurrentTenant>();
+
+        public IAsyncQueryableExecuter AsyncExecuter => LazyServiceProvider.LazyGetRequiredService<IAsyncQueryableExecuter>();
+
+        public IUnitOfWorkManager UnitOfWorkManager => LazyServiceProvider.LazyGetRequiredService<IUnitOfWorkManager>();
+
+        public ICancellationTokenProvider CancellationTokenProvider => LazyServiceProvider.LazyGetService<ICancellationTokenProvider>(NullCancellationTokenProvider.Instance);
 
         protected BasicRepositoryBase()
         {
-            CancellationTokenProvider = NullCancellationTokenProvider.Instance;
+
         }
 
-        public abstract TEntity Insert(TEntity entity, bool autoSave = false);
+        public abstract Task<TEntity> InsertAsync(TEntity entity, bool autoSave = false, CancellationToken cancellationToken = default);
 
-        public virtual Task<TEntity> InsertAsync(TEntity entity, bool autoSave = false, CancellationToken cancellationToken = default)
+        public virtual async Task InsertManyAsync(IEnumerable<TEntity> entities, bool autoSave = false, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(Insert(entity, autoSave));
+            foreach (var entity in entities)
+            {
+                await InsertAsync(entity, cancellationToken: cancellationToken);
+            }
+
+            if (autoSave)
+            {
+                await SaveChangesAsync(cancellationToken);
+            }
         }
 
-        public abstract TEntity Update(TEntity entity, bool autoSave = false);
-
-        public virtual Task<TEntity> UpdateAsync(TEntity entity, bool autoSave = false, CancellationToken cancellationToken = default)
+        protected virtual Task SaveChangesAsync(CancellationToken cancellationToken)
         {
-            return Task.FromResult(Update(entity));
-        }
+            if (UnitOfWorkManager?.Current != null)
+            {
+                return UnitOfWorkManager.Current.SaveChangesAsync(cancellationToken);
+            }
 
-        public abstract void Delete(TEntity entity, bool autoSave = false);
-
-        public virtual Task DeleteAsync(TEntity entity, bool autoSave = false, CancellationToken cancellationToken = default)
-        {
-            Delete(entity);
             return Task.CompletedTask;
         }
 
-        protected virtual CancellationToken GetCancellationToken(CancellationToken prefferedValue = default)
+        public abstract Task<TEntity> UpdateAsync(TEntity entity, bool autoSave = false, CancellationToken cancellationToken = default);
+
+        public virtual async Task UpdateManyAsync(IEnumerable<TEntity> entities, bool autoSave = false, CancellationToken cancellationToken = default)
         {
-            return CancellationTokenProvider.FallbackToProvider(prefferedValue);
+            foreach (var entity in entities)
+            {
+                await UpdateAsync(entity, cancellationToken: cancellationToken);
+            }
+
+            if (autoSave)
+            {
+                await SaveChangesAsync(cancellationToken);
+            }
         }
 
-        public abstract List<TEntity> GetList(bool includeDetails = false);
+        public abstract Task DeleteAsync(TEntity entity, bool autoSave = false, CancellationToken cancellationToken = default);
 
-        public virtual Task<List<TEntity>> GetListAsync(bool includeDetails = false, CancellationToken cancellationToken = default)
+        public virtual async Task DeleteManyAsync(IEnumerable<TEntity> entities, bool autoSave = false, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(GetList(includeDetails));
+            foreach (var entity in entities)
+            {
+                await DeleteAsync(entity, cancellationToken: cancellationToken);
+            }
+
+            if (autoSave)
+            {
+                await SaveChangesAsync(cancellationToken);
+            }
         }
 
-        public abstract long GetCount();
+        public abstract Task<List<TEntity>> GetListAsync(bool includeDetails = false, CancellationToken cancellationToken = default);
 
-        public virtual Task<long> GetCountAsync(CancellationToken cancellationToken = default)
+        public abstract Task<long> GetCountAsync(CancellationToken cancellationToken = default);
+
+        public abstract Task<List<TEntity>> GetPagedListAsync(int skipCount, int maxResultCount, string sorting, bool includeDetails = false, CancellationToken cancellationToken = default);
+
+        protected virtual CancellationToken GetCancellationToken(CancellationToken preferredValue = default)
         {
-            return Task.FromResult(GetCount());
+            return CancellationTokenProvider.FallbackToProvider(preferredValue);
         }
     }
 
     public abstract class BasicRepositoryBase<TEntity, TKey> : BasicRepositoryBase<TEntity>, IBasicRepository<TEntity, TKey>
         where TEntity : class, IEntity<TKey>
     {
-        public virtual TEntity Get(TKey id, bool includeDetails = true)
+        public virtual async Task<TEntity> GetAsync(TKey id, bool includeDetails = true, CancellationToken cancellationToken = default)
         {
-            var entity = Find(id, includeDetails);
+            var entity = await FindAsync(id, includeDetails, cancellationToken);
 
             if (entity == null)
             {
@@ -82,33 +120,30 @@ namespace Volo.Abp.Domain.Repositories
             return entity;
         }
 
-        public virtual Task<TEntity> GetAsync(TKey id, bool includeDetails = true, CancellationToken cancellationToken = default)
-        {
-            return Task.FromResult(Get(id, includeDetails));
-        }
+        public abstract Task<TEntity> FindAsync(TKey id, bool includeDetails = true, CancellationToken cancellationToken = default);
 
-        public abstract TEntity Find(TKey id, bool includeDetails = true);
-
-        public virtual Task<TEntity> FindAsync(TKey id, bool includeDetails = true, CancellationToken cancellationToken = default)
+        public virtual async Task DeleteAsync(TKey id, bool autoSave = false, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(Find(id, includeDetails));
-        }
-
-        public virtual void Delete(TKey id, bool autoSave = false)
-        {
-            var entity = Find(id);
+            var entity = await FindAsync(id, cancellationToken: cancellationToken);
             if (entity == null)
             {
                 return;
             }
 
-            Delete(entity);
+            await DeleteAsync(entity, autoSave, cancellationToken);
         }
 
-        public virtual Task DeleteAsync(TKey id, bool autoSave = false, CancellationToken cancellationToken = default)
+        public async Task DeleteManyAsync([NotNull] IEnumerable<TKey> ids, bool autoSave = false, CancellationToken cancellationToken = default)
         {
-            Delete(id);
-            return Task.CompletedTask;
+            foreach (var id in ids)
+            {
+                await DeleteAsync(id, cancellationToken: cancellationToken);
+            }
+
+            if (autoSave)
+            {
+                await SaveChangesAsync(cancellationToken);
+            }
         }
     }
 }

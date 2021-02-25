@@ -3,7 +3,9 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
+using Volo.Abp.AspNetCore.Mvc.ApplicationConfigurations;
 using Volo.Abp.AspNetCore.Mvc.UI.RazorPages;
+using Volo.Abp.EventBus.Local;
 using Volo.Abp.PermissionManagement.Web.Utils;
 
 namespace Volo.Abp.PermissionManagement.Web.Pages.AbpPermissionManagement
@@ -29,18 +31,25 @@ namespace Volo.Abp.PermissionManagement.Web.Pages.AbpPermissionManagement
 
         public bool SelectAllInAllTabs { get; set; }
 
-        private readonly IPermissionAppService _permissionAppService;
+        protected IPermissionAppService PermissionAppService { get; }
 
-        public PermissionManagementModal(IPermissionAppService permissionAppService)
+        protected ILocalEventBus LocalEventBus { get; }
+
+        public PermissionManagementModal(
+        IPermissionAppService permissionAppService,
+        ILocalEventBus localEventBus)
         {
-            _permissionAppService = permissionAppService;
+            ObjectMapperContext = typeof(AbpPermissionManagementWebModule);
+
+            PermissionAppService = permissionAppService;
+            LocalEventBus = localEventBus;
         }
 
-        public async Task OnGetAsync()
+        public virtual async Task<IActionResult> OnGetAsync()
         {
             ValidateModel();
 
-            var result = await _permissionAppService.GetAsync(ProviderName, ProviderKey);
+            var result = await PermissionAppService.GetAsync(ProviderName, ProviderKey);
 
             EntityDisplayName = result.EntityDisplayName;
 
@@ -60,9 +69,11 @@ namespace Volo.Abp.PermissionManagement.Web.Pages.AbpPermissionManagement
             }
 
             SelectAllInAllTabs = Groups.All(g => g.IsAllPermissionsGranted);
+
+            return Page();
         }
 
-        public async Task<IActionResult> OnPostAsync()
+        public virtual async Task<IActionResult> OnPostAsync()
         {
             ValidateModel();
 
@@ -75,13 +86,17 @@ namespace Volo.Abp.PermissionManagement.Web.Pages.AbpPermissionManagement
                 })
                 .ToArray();
 
-            await _permissionAppService.UpdateAsync(
+            await PermissionAppService.UpdateAsync(
                 ProviderName,
                 ProviderKey,
                 new UpdatePermissionsDto
                 {
                     Permissions = updatePermissionDtos
                 }
+            );
+
+            await LocalEventBus.PublishAsync(
+                new CurrentApplicationConfigurationCacheResetEventData()
             );
 
             return NoContent();

@@ -1,19 +1,17 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Volo.Abp.Data;
 using Volo.Abp.EntityFrameworkCore;
+using Volo.Abp.MultiTenancy;
 
 namespace Volo.Abp.BackgroundJobs.EntityFrameworkCore
 {
-    [ConnectionStringName(BackgroundJobsConsts.ConnectionStringName)]
+    [IgnoreMultiTenancy]
+    [ConnectionStringName(BackgroundJobsDbProperties.ConnectionStringName)]
     public class BackgroundJobsDbContext : AbpDbContext<BackgroundJobsDbContext>, IBackgroundJobsDbContext
     {
-        public static string TablePrefix { get; set; } = BackgroundJobsConsts.DefaultDbTablePrefix;
-
-        public static string Schema { get; set; } = BackgroundJobsConsts.DefaultDbSchema;
-
         public DbSet<BackgroundJobRecord> BackgroundJobs { get; set; }
 
-        public BackgroundJobsDbContext(DbContextOptions<BackgroundJobsDbContext> options) 
+        public BackgroundJobsDbContext(DbContextOptions<BackgroundJobsDbContext> options)
             : base(options)
         {
 
@@ -23,11 +21,7 @@ namespace Volo.Abp.BackgroundJobs.EntityFrameworkCore
         {
             base.OnModelCreating(builder);
 
-            builder.ConfigureBackgroundJobs(options =>
-            {
-                options.TablePrefix = TablePrefix;
-                options.Schema = Schema;
-            });
+            builder.ConfigureBackgroundJobs();
         }
     }
 }

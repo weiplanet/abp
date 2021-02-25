@@ -1,19 +1,17 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Volo.Abp.Data;
 using Volo.Abp.EntityFrameworkCore;
+using Volo.Abp.MultiTenancy;
 
 namespace Volo.Abp.FeatureManagement.EntityFrameworkCore
 {
-    [ConnectionStringName(FeatureManagementConsts.ConnectionStringName)]
+    [IgnoreMultiTenancy]
+    [ConnectionStringName(FeatureManagementDbProperties.ConnectionStringName)]
     public class FeatureManagementDbContext : AbpDbContext<FeatureManagementDbContext>, IFeatureManagementDbContext
     {
-        public static string TablePrefix { get; set; } = FeatureManagementConsts.DefaultDbTablePrefix;
-
-        public static string Schema { get; set; } = FeatureManagementConsts.DefaultDbSchema;
-
         public DbSet<FeatureValue> FeatureValues { get; set; }
 
-        public FeatureManagementDbContext(DbContextOptions<FeatureManagementDbContext> options) 
+        public FeatureManagementDbContext(DbContextOptions<FeatureManagementDbContext> options)
             : base(options)
         {
 
@@ -23,11 +21,7 @@ namespace Volo.Abp.FeatureManagement.EntityFrameworkCore
         {
             base.OnModelCreating(builder);
 
-            builder.ConfigureFeatureManagement(options =>
-            {
-                options.TablePrefix = TablePrefix;
-                options.Schema = Schema;
-            });
+            builder.ConfigureFeatureManagement();
         }
     }
 }

@@ -1,10 +1,11 @@
 ﻿using System.Threading.Tasks;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
 using Shouldly;
 using Volo.Abp.Identity;
 using Xunit;
 
-namespace Volo.Abp.Account.Pro.Application.Tests.Volo.Abp.Account
+namespace Volo.Abp.Account
 {
     public class AccountAppService_Tests : AbpAccountApplicationTestBase
     {
@@ -12,7 +13,7 @@ namespace Volo.Abp.Account.Pro.Application.Tests.Volo.Abp.Account
         private readonly IIdentityUserRepository _identityUserRepository;
         private readonly ILookupNormalizer _lookupNormalizer;
         private readonly IdentityUserManager _userManager;
-
+        private readonly IOptions<IdentityOptions> _identityOptions;
 
         public AccountAppService_Tests()
         {
@@ -20,11 +21,14 @@ namespace Volo.Abp.Account.Pro.Application.Tests.Volo.Abp.Account
             _identityUserRepository = GetRequiredService<IIdentityUserRepository>();
             _lookupNormalizer = GetRequiredService<ILookupNormalizer>();
             _userManager = GetRequiredService<IdentityUserManager>();
+            _identityOptions = GetRequiredService<IOptions<IdentityOptions>>();
         }
 
         [Fact]
         public async Task RegisterAsync()
         {
+            await _identityOptions.SetAsync();
+
             var registerDto = new RegisterDto
             {
                 UserName = "bob.lee",

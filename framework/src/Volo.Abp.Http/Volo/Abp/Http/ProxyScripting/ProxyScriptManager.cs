@@ -7,6 +7,7 @@ using Volo.Abp.Http.Modeling;
 using Volo.Abp.Http.ProxyScripting.Configuration;
 using Volo.Abp.Http.ProxyScripting.Generators;
 using Volo.Abp.Json;
+using Volo.Abp.Minify.Scripts;
 
 namespace Volo.Abp.Http.ProxyScripting
 {
@@ -19,7 +20,7 @@ namespace Volo.Abp.Http.ProxyScripting
         private readonly AbpApiProxyScriptingOptions _options;
 
         public ProxyScriptManager(
-            IApiDescriptionModelProvider modelProvider, 
+            IApiDescriptionModelProvider modelProvider,
             IServiceProvider serviceProvider,
             IJsonSerializer jsonSerializer,
             IProxyScriptManagerCache cache,
@@ -48,7 +49,7 @@ namespace Volo.Abp.Http.ProxyScripting
 
         private string CreateScript(ProxyScriptingModel scriptingModel)
         {
-            var apiModel = _modelProvider.CreateApiModel();
+            var apiModel = _modelProvider.CreateApiModel(new ApplicationApiDescriptionModelRequestDto {IncludeTypes = false});
 
             if (scriptingModel.IsPartialRequest())
             {
@@ -69,7 +70,14 @@ namespace Volo.Abp.Http.ProxyScripting
 
         private string CreateCacheKey(ProxyScriptingModel model)
         {
-            return _jsonSerializer.Serialize(model).ToMd5();
+            return _jsonSerializer.Serialize(new
+            {
+                model.GeneratorType,
+                model.Modules,
+                model.Controllers,
+                model.Actions,
+                model.Properties
+            }).ToMd5();
         }
     }
 }

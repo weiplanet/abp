@@ -89,13 +89,15 @@ public static class IdentityDbContextModelBuilderExtensions
 
         builder.Entity<IdentityUser>(b =>
         {
-            b.ToTable(options.TablePrefix + "Users", options.Schema);            
+            b.ToTable(options.TablePrefix + "Users", options.Schema);
+            b.ConfigureByConvention();
             //code omitted for brevity
         });
 
         builder.Entity<IdentityUserClaim>(b =>
         {
             b.ToTable(options.TablePrefix + "UserClaims", options.Schema);
+            b.ConfigureByConvention();
             //code omitted for brevity
         });
         
@@ -104,10 +106,11 @@ public static class IdentityDbContextModelBuilderExtensions
 }
 ````
 
-* **Do** create a **configuration options** class by inheriting from the `ModelBuilderConfigurationOptions`. Example:
+* **Do** call `b.ConfigureByConvention();` for each entity mapping (as shown above).
+* **Do** create a **configuration options** class by inheriting from the `AbpModelBuilderConfigurationOptions`. Example:
 
 ````C#
-public class IdentityModelBuilderConfigurationOptions : ModelBuilderConfigurationOptions
+public class IdentityModelBuilderConfigurationOptions : AbpModelBuilderConfigurationOptions
 {
     public IdentityModelBuilderConfigurationOptions()
         : base(AbpIdentityConsts.DefaultDbTablePrefix, AbpIdentityConsts.DefaultDbSchema)
@@ -141,7 +144,7 @@ public virtual async Task<IdentityUser> FindByNormalizedUserNameAsync(
     bool includeDetails = true,
     CancellationToken cancellationToken = default)
 {
-    return await DbSet
+    return await (await GetDbSetAsync())
         .IncludeDetails(includeDetails)
         .FirstOrDefaultAsync(
             u => u.NormalizedUserName == normalizedUserName,
@@ -172,14 +175,15 @@ public static IQueryable<IdentityUser> IncludeDetails(
 }
 ````
 
-* **Do** use the `IncludeDetails` extension method in the repository methods just like used in the example code above (see FindByNormalizedUserNameAsync).
+* **Do** use the `IncludeDetails` extension method in the repository methods just like used in the example code above (see `FindByNormalizedUserNameAsync`).
 
-- **Do** override `IncludeDetails` method of the repository for aggregates root which have **sub collections**. Example:
+- **Do** override `WithDetails` method of the repository for aggregates root which have **sub collections**. Example:
 
 ````C#
-protected override IQueryable<IdentityUser> IncludeDetails(IQueryable<IdentityUser> queryable)
+public override async Task<IQueryable<IdentityUser>> WithDetailsAsync()
 {
-    return queryable.IncludeDetails(); //uses the extension method defined above
+    // Uses the extension method defined above
+    return (await GetQueryableAsync()).IncludeDetails();
 }
 ````
 
@@ -206,4 +210,3 @@ public class AbpIdentityEntityFrameworkCoreModule : AbpModule
     }
 }
 ````
-

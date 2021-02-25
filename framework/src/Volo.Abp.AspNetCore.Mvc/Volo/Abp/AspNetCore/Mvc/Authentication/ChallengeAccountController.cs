@@ -8,10 +8,12 @@ namespace Volo.Abp.AspNetCore.Mvc.Authentication
     public abstract class ChallengeAccountController : AbpController
     {
         protected string[] ChallengeAuthenticationSchemas { get; }
+        protected string AuthenticationType { get; }
 
         protected ChallengeAccountController(string[] challengeAuthenticationSchemas = null)
         {
-            ChallengeAuthenticationSchemas = challengeAuthenticationSchemas ?? new[]{ "oidc" };
+            ChallengeAuthenticationSchemas = challengeAuthenticationSchemas ?? new[] { "oidc" };
+            AuthenticationType = "Identity.Application";
         }
 
         [HttpGet]
@@ -42,44 +44,27 @@ namespace Volo.Abp.AspNetCore.Mvc.Authentication
         {
             await HttpContext.SignOutAsync();
 
-            return RedirectSafely(returnUrl, returnUrlHash);
-        }
-
-        protected RedirectResult RedirectSafely(string returnUrl, string returnUrlHash = null)
-        {
-            return Redirect(GetRedirectUrl(returnUrl, returnUrlHash));
-        }
-
-        private string GetRedirectUrl(string returnUrl, string returnUrlHash = null)
-        {
-            returnUrl = NormalizeReturnUrl(returnUrl);
-
-            if (!returnUrlHash.IsNullOrWhiteSpace())
+            if (HttpContext.User.Identity.AuthenticationType == AuthenticationType)
             {
-                returnUrl = returnUrl + returnUrlHash;
+                return RedirectSafely(returnUrl, returnUrlHash);
             }
 
-            return returnUrl;
+            return new SignOutResult(ChallengeAuthenticationSchemas);
         }
 
-        private string NormalizeReturnUrl(string returnUrl)
+        [HttpGet]
+        public async Task<IActionResult> FrontChannelLogout(string sid)
         {
-            if (returnUrl.IsNullOrEmpty())
+            if (User.Identity.IsAuthenticated)
             {
-                return GetAppHomeUrl();
+                var currentSid = User.FindFirst("sid").Value ?? string.Empty;
+                if (string.Equals(currentSid, sid, StringComparison.Ordinal))
+                {
+                    await Logout();
+                }
             }
 
-            if (Url.IsLocalUrl(returnUrl))
-            {
-                return returnUrl;
-            }
-
-            return GetAppHomeUrl();
-        }
-
-        protected virtual string GetAppHomeUrl()
-        {
-            return "/";
+            return NoContent();
         }
     }
 }

@@ -3,7 +3,10 @@ import { eLayoutType } from '@abp/ng.core';
 
 @Component({
   selector: 'abp-layout-account',
-  templateUrl: './account-layout.component.html',
+  template: `
+    <router-outlet></router-outlet>
+    <abp-confirmation></abp-confirmation>
+  `,
 })
 export class AccountLayoutComponent {
   // required for dynamic component

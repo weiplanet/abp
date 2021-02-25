@@ -23,16 +23,28 @@ namespace Volo.Abp.TenantManagement.EntityFrameworkCore
             bool includeDetails = true,
             CancellationToken cancellationToken = default)
         {
-            return await DbSet
+            return await (await GetDbSetAsync())
                 .IncludeDetails(includeDetails)
+                .OrderBy(t => t.Id)
                 .FirstOrDefaultAsync(t => t.Name == name, GetCancellationToken(cancellationToken));
         }
 
-        public Tenant FindByName(string name, bool includeDetails = true)
+        [Obsolete("Use FindByNameAsync method.")]
+        public virtual Tenant FindByName(string name, bool includeDetails = true)
         {
             return DbSet
                 .IncludeDetails(includeDetails)
+                .OrderBy(t => t.Id)
                 .FirstOrDefault(t => t.Name == name);
+        }
+
+        [Obsolete("Use FindAsync method.")]
+        public virtual Tenant FindById(Guid id, bool includeDetails = true)
+        {
+            return DbSet
+                .IncludeDetails(includeDetails)
+                .OrderBy(t => t.Id)
+                .FirstOrDefault(t => t.Id == id);
         }
 
         public virtual async Task<List<Tenant>> GetListAsync(
@@ -43,7 +55,7 @@ namespace Volo.Abp.TenantManagement.EntityFrameworkCore
             bool includeDetails = false,
             CancellationToken cancellationToken = default)
         {
-            return await DbSet
+            return await (await GetDbSetAsync())
                 .IncludeDetails(includeDetails)
                 .WhereIf(
                     !filter.IsNullOrWhiteSpace(),
@@ -55,7 +67,7 @@ namespace Volo.Abp.TenantManagement.EntityFrameworkCore
                 .ToListAsync(GetCancellationToken(cancellationToken));
         }
 
-        public async Task<long> GetCountAsync(string filter = null, CancellationToken cancellationToken = default)
+        public virtual async Task<long> GetCountAsync(string filter = null, CancellationToken cancellationToken = default)
         {
             return await this
                 .WhereIf(
@@ -65,9 +77,15 @@ namespace Volo.Abp.TenantManagement.EntityFrameworkCore
                 ).CountAsync(cancellationToken: cancellationToken);
         }
 
+        [Obsolete("Use WithDetailsAsync method.")]
         public override IQueryable<Tenant> WithDetails()
         {
             return GetQueryable().IncludeDetails();
+        }
+
+        public override async Task<IQueryable<Tenant>> WithDetailsAsync()
+        {
+            return (await GetQueryableAsync()).IncludeDetails();
         }
     }
 }
